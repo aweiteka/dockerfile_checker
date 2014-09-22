@@ -18,7 +18,3 @@ TODO
 
 * DONE: check is USER <otherthanroot> is used
 
-REFERENCES
-==========
-
-Red Hat internal documenting docker best practices http://file.rdu.redhat.com/~mgoldman/jboss-docker-docs/best-practice.html
