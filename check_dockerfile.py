@@ -1,4 +1,21 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+#    dockerfile_checker.py a sanity checker for Dockerfiles
+#    Copyright (C) 2014 Aaron Weitekamp, Christoph Görn
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 import argparse
@@ -11,12 +28,13 @@ class Dockerfile(object):
 
     def __init__(self, dockerfile):
         self.dockerfile = dockerfile
-        self._raw_file = []
-        self._layer_count = 0
-        self._from_val = None
-        self._maintainer = None
-        self._user_switched = False
-        self._sshd_installed = False
+        self._raw_file = []			    # the docker file itself
+        self._layer_count = 0			# how many layers will this dockerfile produce?
+        self._from_val = None			# is this a layered image?
+        self._maintainer = None			# is the MAINTAINER defined?
+        self._user_switched = False		# is USER instruction used?
+        self._ports_exposed = 0 		# have ports been EXPOSEd? how many?
+        self._sshd_installed = False	# shall sshd be installed in the image?
 
         self.process_dockerfile()
 
@@ -40,6 +58,9 @@ class Dockerfile(object):
             if "RUN" in m.group(1):
                 if "ssh-server" in m.group(1) or "sshd" in m.group(1):
                     self.set_sshd_installed(True)
+            if "EXPOSE" in m.group(1):
+                _ports = m.group(2).split(" ")
+                self.set_ports_exposed(len(_ports))
 
     @property
     def raw_file(self):
@@ -47,6 +68,13 @@ class Dockerfile(object):
 
     def set_raw_file(self, f):
         self._raw_file.append(f)
+
+    @property
+    def ports_exposed(self):
+        return self._ports_exposed
+
+    def set_ports_exposed(self, val):
+        self._ports_exposed = val
 
     @property
     def from_val(self):
@@ -123,6 +151,15 @@ class Dockerfile(object):
                                 "description": "using the 'latest' tag may cause unpredictable builds. It is recommended that a specific tag is used in the FROM line.",
                                 "reference_url": DOCS_URL + "#from"}
                         })
+        if self.ports_exposed > 0:
+            info.update({"ports_exposed": {
+                                "line": None, # FIXME
+                                "message": "a number of ports have been exposed",
+                                "description": "Exposed ports may be used for linking containers or for accessing them. You should consider using the -p option with docker run.",
+                                "reference_url": DOCS_URL + "#expose"}
+                        })
+
+
         return info
 
     @property
@@ -132,7 +169,7 @@ class Dockerfile(object):
             warning.update({"tag": {
                                 "line": 1,
                                 "message": "No tag is used",
-                                "description": "lorem ipsum tar",
+                                "description": "You have not used a tag with the image used in the FROM line, this may lead to unexpected image versions used.",
                                 "reference_url": DOCS_URL + "#from"}
                             })
         if not self.has_tag:
@@ -155,6 +192,12 @@ class Dockerfile(object):
                                 "line": None, # FIXME add line count
                                 "message": "You seem to be installing sshd to the Docker image, if you do really REALLY require this: ok, if it is just for entering the docker container consider using nsenter.",
                                 "reference_url": "https://github.com/jpetazzo/nsenter"}
+                            })
+        if self.ports_exposed == 0:
+            warning.update({"ports_exposed": {
+                                "line": None, # FIXME add line count
+                                "message": "You have not exposed any ports, how will the service of the container be accessed?",
+                                "reference_url": DOCS_URL+"#expose"}
                             })
 
         return warning

@@ -14,7 +14,7 @@ TODO
 
 * check if a user is created within the Dockerfile
  
-* check if ports got EXPOSEd
+* DONE: check if ports got EXPOSEd
 
 * DONE: check is USER <otherthanroot> is used
 
