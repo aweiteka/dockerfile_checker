@@ -1,4 +1,4 @@
-* check is a ssh rpm gets installed => no good
+* DONE: check is a ssh rpm gets installed => no good
 
 * check if ENTRYPOINT or CMD is present
 
@@ -9,7 +9,7 @@
  
 * check if ports got EXPOSEd
 
-* check is USER <otherthanroot> is used
+* DONE: check is USER <otherthanroot> is used
 
 REFERENCES
 

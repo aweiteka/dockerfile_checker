@@ -14,6 +14,9 @@ class Dockerfile(object):
         self._layer_count = 0
         self._from_val = None
         self._maintainer = None
+        self._user_switched = False
+        self._sshd_installed = False
+
         self.process_dockerfile()
 
     def process_dockerfile(self):
@@ -31,6 +34,11 @@ class Dockerfile(object):
                 self.set_from(m.group(2))
             if "MAINTAINER" in m.group(1):
                 self.set_maintainer(m.group(2))
+            if "USER" in m.group(1):
+                self.set_user_switched(True)
+            if "RUN" in m.group(1):
+                if "ssh-server" in m.group(1) or "sshd" in m.group(1):
+                    self.set_sshd_installed(True)
 
     @property
     def raw_file(self):
@@ -45,6 +53,20 @@ class Dockerfile(object):
 
     def set_from(self, val):
         self._from_val = val
+
+    @property
+    def user_switched(self):
+        return self._user_switched
+
+    def set_user_switched(self, val):
+        self._user_switched = val
+
+    @property
+    def sshd_installed(self):
+        return self._sshd_installed
+
+    def set_sshd_installed(self, val):
+        self._sshd_installed = val
 
     @property
     def is_latest(self):
@@ -119,11 +141,26 @@ class Dockerfile(object):
                                 "description": "The MAINTAINER line is useful for identifying the author in the form of MAINTAINER Joe Smith <joe.smith@example.com>",
                                 "reference_url": DOCS_URL + "#maintainer"}
                             })
+
+        if not self.user_switched:
+            warning.update({"user": {
+                                "line": None, # FIXME add line count
+                                "message": "You have not used USER instruction, so the process(es) within the container may run as root and RUN instructions my be run as root!",
+                                "reference_url": DOCS_URL + "#user"}
+                            })
+
+        if not self.sshd_installed:
+            warning.update({"sshd": {
+                                "line": None, # FIXME add line count
+                                "message": "You seem to be installing sshd to the Docker image, if you do really REALLY require this: ok, if it is just for entering the docker container consider using nsenter.",
+                                "reference_url": "https://github.com/jpetazzo/nsenter"}
+                            })
+
         return warning
 
     @property
     def errors(self):
-        return {"Foo": "bar", "Bee": "buzz"}
+        return {}
 
     def to_json(self):
         print json.dumps({
