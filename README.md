@@ -1,3 +1,7 @@
+This is a Dockerfile sanity and semantics checker. It will give hints based on best practices. 
+
+The upstream project is at https://github.com/goern/dockerfile_checker
+
 TODO
 ====
 
