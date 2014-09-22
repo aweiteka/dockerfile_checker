@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import sys
 import argparse
 import re
 import json
@@ -180,6 +181,15 @@ class Dockerfile(object):
                 },
                 sort_keys=True, indent=4)
 
+    @staticmethod
+    def evaluation():
+        if len(self.errors > 0):
+            return -1
+        
+        return len(self.warnings)
+
+# end of class Dockerfile
+
 def main():
     """Entrypoint for script"""
     parser = argparse.ArgumentParser()
@@ -191,7 +201,12 @@ def main():
     d = Dockerfile(args.dockerfile)
     d.to_json()
 
-if __name__ == '__main__':
-    main()
+    # -1 if errors occurred
+    # number of warnings otherwise
+    return d.evaluation
 
+if __name__ == '__main__':
+    sys.exit(main())
+
+    # stderr could be ignore as it contains some python information
 
