@@ -1,0 +1,84 @@
+general:
+  ref_url_base: &ref_url_base https://docs.docker.com/reference/builder/
+  valid_instructions:
+  - FROM
+  - MAINTAINER
+  - RUN
+  - CMD
+  - EXPOSE
+  - ENV
+  - ADD
+  - COPY
+  - ENTRYPOINT
+  - VOLUME
+  - USER
+  - WORKDIR
+  - ONBUILD
+  instruction_regex: '(\w+)\s(.+$)'
+  ignore_regex: '#'
+  # TODO: implement multiline instructions
+  multiline_regex: '\$'
+
+line_rules:
+# RULE key must be uppercase, e.g. FROM
+# label is an arbitrary label name
+# level must be one of ['info', 'warn', 'error']
+  FROM:
+    - label: is_latest_tag
+      regex: latest
+      level: info
+      message: base image uses 'latest' tag
+      description: using the 'latest' tag may cause unpredictable builds. It is recommended that a specific tag is used in the FROM line.
+      reference_url: [*ref_url_base, "#from"]
+    - label: no_tag
+      regex: '^[:]'
+      level: warn
+      message: No tag is used
+      description: lorem ipsum tar
+      reference_url: [*ref_url_base, "#from"]
+  RUN:
+    - label: no_yum_clean_all
+      # FIXME: not working
+      regex: 'yum ((?!clean all).)* .+'
+      level: warn
+      message: yum clean all is not used
+      description: the yum cache will remain in this layer making the layer unnecessarily large
+      reference_url: None
+    - label: installing_ssh
+      regex: ssh
+      level: warn
+      message: installing SSH in a container is not recommended
+      description: Do you really need SSH in this image?
+      reference_url: https://github.com/jpetazzo/nsenter
+
+global_counts:
+  MAINTAINER:
+    count: 1
+    level: info
+    message: Maintainer is not defined
+    description: The MAINTAINER line is useful for identifying the author in the form of MAINTAINER Joe Smith <joe.smith@example.com>
+    reference_url: [*ref_url_base, "#maintainer"]
+  EXPOSE:
+    count: 1
+    level: info
+    message: There is no 'EXPOSE' instruction
+    description: Without exposed ports how will the service of the container be accessed?
+    reference_url: [*ref_url_base, "#expose"]
+  ENTRYPOINT:
+    count: 1
+    level: info
+    message: There is no 'ENTRYPOINT' instruction
+    description: None
+    reference_url: [*ref_url_base, "#entrypoint"]
+  CMD:
+    count: 1
+    level: info
+    message: There is no 'CMD' instruction
+    description: None
+    reference_url: [*ref_url_base, "#cmd"]
+  USER:
+    count: 1
+    level: warn
+    message: No 'USER' instruction
+    description: The process(es) within the container may run as root and RUN instructions my be run as root
+    reference_url: [*ref_url_base, "#user"]

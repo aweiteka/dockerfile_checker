@@ -2,16 +2,18 @@
 #
 # Originally written for Fedora-Dockerfiles by
 
-FROM centos
+FROM centos:latest
 MAINTAINER The CentOS Project <cloud-ops@centos.org>
+MAINTAINER Foo Bar
 
-TOP myfile
 # install main packages:
-RUN yum -y update; yum clean all
+RUN yum -y update
 RUN yum -y install openssl-devel openssl readline readline-devel gcc gcc-c++ rubygems rubygems-devel ruby ruby-devel; yum clean all
 
 # install earthquake
-RUN gem install earthquake
+RUN gem install earthquake ssh
+
+BLAH my action
 
 # set the env:
 RUN useradd -d /home/twitter twitter

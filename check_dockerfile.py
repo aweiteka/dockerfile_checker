@@ -21,53 +21,34 @@ import sys
 import argparse
 import re
 import json
+import yaml
 
 DOCS_URL = "https://docs.docker.com/reference/builder/"
 
-class Dockerfile(object):
+class DockerfileLine(object):
 
-    def __init__(self, dockerfile):
-        self.dockerfile = dockerfile
-        self._raw_file = []			    # the docker file itself
-        self._layer_count = 0			# how many layers will this dockerfile produce?
-        self._from_val = None			# is this a layered image?
-        self._maintainer = None			# is the MAINTAINER defined?
-        self._user_switched = False		# is USER instruction used?
-        self._ports_exposed = 0 		# have ports been EXPOSEd? how many?
-        self._sshd_installed = False	# shall sshd be installed in the image?
-
-        self.process_dockerfile()
-
-    def process_dockerfile(self):
-        with open(self.dockerfile, 'r') as f:
-            for line in f:
-                self.set_raw_file(line.strip())
-                self.parse_dockerfile(line)
-
-    def parse_dockerfile(self, line):
-        p = re.compile(r'(\w+)\s(.+$)')
-        m = p.match(line)
-        if m:
-            self.incr_layer_count(line)
-            if "FROM" in m.group(1):
-                self.set_from(m.group(2))
-            if "MAINTAINER" in m.group(1):
-                self.set_maintainer(m.group(2))
-            if "USER" in m.group(1):
-                self.set_user_switched(True)
-            if "RUN" in m.group(1):
-                if "ssh-server" in m.group(1) or "sshd" in m.group(1):
-                    self.set_sshd_installed(True)
-            if "EXPOSE" in m.group(1):
-                _ports = m.group(2).split(" ")
-                self.set_ports_exposed(len(_ports))
+    def __init__(self, rules, line):
+        self.line = line
+        self.rules = rules
+        #self._line_array = []
+        #self._raw_file = []			    # the docker file itself
+        #self._layer_count = 0			# how many layers will this dockerfile produce?
+        #self._from_val = None			# is this a layered image?
+        #self._maintainer = None			# is the MAINTAINER defined?
+        #self._user_switched = False		# is USER instruction used?
+        #self._ports_exposed = 0 		# have ports been EXPOSEd? how many?
+        #self._sshd_installed = False	# shall sshd be installed in the image?
 
     @property
-    def raw_file(self):
-        return self._raw_file
+    def line_array(self):
+        return self._line_array
 
-    def set_raw_file(self, f):
-        self._raw_file.append(f)
+    def append_line(self, line_num, inst, arg):
+        self._line_array.append({
+            "line": line_num,
+            "instruction": inst,
+            "argument": arg })
+
 
     @property
     def ports_exposed(self):
@@ -125,128 +106,277 @@ class Dockerfile(object):
         else:
             return False
 
-    @property
-    def layer_count(self):
-        return self._layer_count
+    def ignore_line(self, line):
+        p = re.compile(r'%s' % self.rules.general['ignore_regex'])
+        m = p.match(line)
+        if m:
+            return True
+        else:
+            return False
 
-    def incr_layer_count(self, line):
-        if "#" not in line:
-            self._layer_count = self._layer_count + 1
-
-    @property
-    def summary(self):
-        return {"raw": self.raw_file,
-                "FROM": self.from_val,
-                "layer_count": self.layer_count
-                }
-
-    @property
-    def info(self):
-        info = dict()
-        info.update({"Maintainer": self.maintainer})
-        if self.is_latest:
-            info.update({"from_latest": {
-                                "line": 1,
-                                "message": "base image uses 'latest' tag",
-                                "description": "using the 'latest' tag may cause unpredictable builds. It is recommended that a specific tag is used in the FROM line.",
-                                "reference_url": DOCS_URL + "#from"}
-                        })
-        if self.ports_exposed > 0:
-            info.update({"ports_exposed": {
-                                "line": None, # FIXME
-                                "message": "a number of ports have been exposed",
-                                "description": "Exposed ports may be used for linking containers or for accessing them. You should consider using the -p option with docker run.",
-                                "reference_url": DOCS_URL + "#expose"}
-                        })
-
-
-        return info
-
-    @property
-    def warnings(self):
-        warning = dict()
-        if not self.has_tag:
-            warning.update({"tag": {
-                                "line": 1,
-                                "message": "No tag is used",
-                                "description": "You have not used a tag with the image used in the FROM line, this may lead to unexpected image versions used.",
-                                "reference_url": DOCS_URL + "#from"}
-                            })
-        if not self.has_tag:
-            warning.update({"maintainer": {
-                                "line": None,
-                                "message": "Maintainer is not defined",
-                                "description": "The MAINTAINER line is useful for identifying the author in the form of MAINTAINER Joe Smith <joe.smith@example.com>",
-                                "reference_url": DOCS_URL + "#maintainer"}
-                            })
-
-        if not self.user_switched:
-            warning.update({"user": {
-                                "line": None, # FIXME add line count
-                                "message": "You have not used USER instruction, so the process(es) within the container may run as root and RUN instructions my be run as root!",
-                                "reference_url": DOCS_URL + "#user"}
-                            })
-
-        if not self.sshd_installed:
-            warning.update({"sshd": {
-                                "line": None, # FIXME add line count
-                                "message": "You seem to be installing sshd to the Docker image, if you do really REALLY require this: ok, if it is just for entering the docker container consider using nsenter.",
-                                "reference_url": "https://github.com/jpetazzo/nsenter"}
-                            })
-        if self.ports_exposed == 0:
-            warning.update({"ports_exposed": {
-                                "line": None, # FIXME add line count
-                                "message": "You have not exposed any ports, how will the service of the container be accessed?",
-                                "reference_url": DOCS_URL+"#expose"}
-                            })
-
-        return warning
-
-    @property
-    def errors(self):
-        return {}
-
-    def to_json(self):
-        print json.dumps({
-                "summary": self.summary,
-                "info": {
-                    "count": len(self.info),
-                    "data": self.info
-                    },
-                "warnings": {
-                    "count": len(self.warnings),
-                    "data": self.warnings
-                    },
-                "errors": {
-                    "count": len(self.errors),
-                    "data": self.errors
-                    }
-                },
-                sort_keys=True, indent=4)
+    def is_valid_instruction(self, instruction):
+        if instruction not in self.rules.general['valid_instructions']:
+            return False
+        else:
+            return True
 
     @staticmethod
     def evaluation():
         if len(self.errors > 0):
-            return -1
-        
+            return False
         return len(self.warnings)
 
-# end of class Dockerfile
+class Output(object):
+    """Base class for output"""
+
+    def update(self, **kwargs):
+        self._items.update(**kwargs)
+
+    def increment_count(self):
+        self._count += 1
+
+class Summary(Output):
+    """Subclass for summary section"""
+    _items = {}
+
+    def __init__(self):
+        self.__line_count = 0
+        self.__layer_count = 0
+        self.__ignored_lines_count = 0
+        self.__raw_file = []
+        self.__valid_commands = []
+
+    @property
+    def line_count(self):
+        return self.__line_count
+
+    @line_count.setter
+    def line_count(self,value=1):
+        self.__line_count += value
+
+    @property
+    def layer_count(self):
+        return self.__layer_count
+
+    def incr_layer_count(self,value=1):
+        self.__layer_count += value
+
+    @property
+    def ignored_lines_count(self):
+        return self.__ignored_lines_count
+
+    def incr_ignored_lines_count(self,value=1):
+        self.__ignored_lines_count += value
+
+    @property
+    def items(self):
+        return self._items
+
+    @property
+    def raw_file(self):
+        return self.__raw_file
+
+    @raw_file.setter
+    def raw_file(self, line):
+        self.__raw_file.append(line)
+
+    @property
+    def valid_commands(self):
+        return self.__valid_commands
+
+    @valid_commands.setter
+    def valid_commands(self, line):
+        self.__valid_commands.append(line)
+
+class Info(Output):
+    """Subclass for info section"""
+    _items = {}
+    _info = []
+    _count = 0
+
+    @property
+    def items(self):
+        return self._items
+
+    @property
+    def count(self):
+        return self._count
+
+    def incr_count(self,value=1):
+        self._count += value
+
+    def append(self, **kwargs):
+        self._info.append(kwargs)
+
+    @property
+    def info(self):
+        return self._info
+
+class Warn(Output):
+    """Subclass for warnings section"""
+    _items = {}
+    _warnings = []
+    _count = 0
+
+    #def __init__(self):
+    #    self.__count = 0
+
+    @property
+    def items(self):
+        return self._items
+
+    @property
+    def count(self):
+        return self._count
+
+    def incr_count(self,value=1):
+        self._count += value
+
+    def append(self, **kwargs):
+        self._warnings.append(kwargs)
+
+    @property
+    def warnings(self):
+        return self._warnings
+
+class Error(Output):
+    """Subclass for errors section"""
+    _items = {}
+    _errors = []
+    _count = 0
+
+    @property
+    def items(self):
+        return self._items
+
+    @property
+    def count(self):
+        return self._count
+
+    def append(self, **kwargs):
+        self._errors.append(kwargs)
+
+    @property
+    def errors(self):
+        return self._errors
+
+class Rules:
+    """Convert yaml into object"""
+    def __init__(self, **rules):
+        self.__dict__.update(rules)
+
+def parse_rules(rules):
+    f = open(rules)
+    rules = yaml.safe_load(f)
+    f.close()
+    return Rules(**rules)
 
 def main():
     """Entrypoint for script"""
+
     parser = argparse.ArgumentParser()
     parser.add_argument("dockerfile",
                         metavar="path/to/Dockerfile",
                         help="Dockerfile to analyze")
+    parser.add_argument("-r", "--rules",
+                       dest="rules",
+                       metavar="path/to/dockerfile/rules.yaml",
+                       default="dockerfile_rules.yaml",
+                       help="Custom rules file. Default is dockerfile_rules.yaml")
     args = parser.parse_args()
 
-    d = Dockerfile(args.dockerfile)
-    d.to_json()
 
+    def match_rule(instruction_rules, arg):
+        for rule in instruction_rules:
+            p = re.compile(r'%s' % rule['regex'])
+            m = p.search(arg)
+            if m:
+                rule.update({ "line": summary.line_count })
+                if 'warn' in rule['level']:
+                    warn.append(**rule)
+                    warn.incr_count()
+                elif 'error' in rule['level']:
+                    error.append(**rule)
+                    error.incr_count()
+                elif 'info' in rule['level']:
+                    info.append(**rule)
+                    info.incr_count()
+
+    def to_json():
+        return json.dumps({
+                "summary": summary.items,
+                "info": info.items,
+                "warnings": warn.items,
+                "errors": error.items,
+                },
+                sort_keys=True, indent=4)
+
+    def post_processing():
+        for rule in rules.global_counts:
+            count = 0
+            for cmd in summary.valid_commands:
+                if rule in cmd[0]:
+                    count += 1
+                #print rule, count
+                #if count != rule['count']:
+                #    print "ERROR %s" % cmd
+
+    def process_dockerfile(dockerfile):
+        with open(dockerfile, 'r') as f:
+            for line in f:
+                summary.line_count = 1
+                summary.raw_file = line.strip()
+                parse_dockerfile(line.strip())
+        summary.update(filename = args.dockerfile)
+        summary.update(raw_file_array = summary.raw_file)
+        summary.update(total_lines = summary.line_count)
+        summary.update(ignored_lines = summary.ignored_lines_count)
+        summary.update(resulting_image_layers = summary.layer_count)
+        info.update(info = info.info)
+        info.update(count = info.count)
+        warn.update(count = warn.count)
+        warn.update(warnings = warn.warnings)
+        error.update(count = error.count)
+        error.update(errors = error.errors)
+
+    def parse_dockerfile(line_text):
+        dl = DockerfileLine(rules, line_text)
+        if dl.ignore_line(line_text):
+             summary.incr_ignored_lines_count()
+             return
+        else:
+            p = re.compile(r'%s' % rules.general['instruction_regex'])
+            m = p.match(line_text)
+            if m:
+                instruction, arg = (m.group(1).upper(), m.group(2))
+                if dl.is_valid_instruction(instruction):
+                    summary.valid_commands = (instruction, arg)
+                    summary.incr_layer_count()
+                    if instruction in rules.line_rules:
+                        match_rule(rules.line_rules[instruction], arg)
+                else:
+                    error.append(
+                        line = summary.line_count,
+                        instruction = m.group(1),
+                        arg = m.group(2),
+                        text = "invalid instruction")
+                    error.increment_count()
+
+    summary = Summary()
+    warn = Warn()
+    info = Info()
+    error = Error()
+
+    rules = parse_rules(args.rules)
+    process_dockerfile(args.dockerfile)
+    post_processing()
+    print to_json()
+
+    #d.to_json()
     # -1 if errors occurred
     # number of warnings otherwise
-    return d.evaluation
+    #return d.evaluation
+
 
 if __name__ == '__main__':
     sys.exit(main())
