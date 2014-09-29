@@ -23,108 +23,28 @@ import re
 import json
 import yaml
 
-DOCS_URL = "https://docs.docker.com/reference/builder/"
-
+# FIXME: this class was trimmed down after the refactor
+# not clear if still needed
 class DockerfileLine(object):
 
     def __init__(self, rules, line):
         self.line = line
         self.rules = rules
-        #self._line_array = []
-        #self._raw_file = []			    # the docker file itself
-        #self._layer_count = 0			# how many layers will this dockerfile produce?
-        #self._from_val = None			# is this a layered image?
-        #self._maintainer = None			# is the MAINTAINER defined?
-        #self._user_switched = False		# is USER instruction used?
-        #self._ports_exposed = 0 		# have ports been EXPOSEd? how many?
-        #self._sshd_installed = False	# shall sshd be installed in the image?
 
-    @property
-    def line_array(self):
-        return self._line_array
-
-    def append_line(self, line_num, inst, arg):
-        self._line_array.append({
-            "line": line_num,
-            "instruction": inst,
-            "argument": arg })
-
-
-    @property
-    def ports_exposed(self):
-        return self._ports_exposed
-
-    def set_ports_exposed(self, val):
-        self._ports_exposed = val
-
-    @property
-    def from_val(self):
-        return self._from_val
-
-    def set_from(self, val):
-        self._from_val = val
-
-    @property
-    def user_switched(self):
-        return self._user_switched
-
-    def set_user_switched(self, val):
-        self._user_switched = val
-
-    @property
-    def sshd_installed(self):
-        return self._sshd_installed
-
-    def set_sshd_installed(self, val):
-        self._sshd_installed = val
-
-    @property
-    def is_latest(self):
-        if "latest" in self.from_val:
-            return True
-        else:
-            return False
-
-    @property
-    def has_tag(self):
-        if ":" in self.from_val:
-            return True
-        else:
-            return False
-
-    @property
-    def maintainer(self):
-        return self._maintainer
-
-    def set_maintainer(self, maintainer=None):
-        self._maintainer = maintainer
-
-    @property
-    def has_maintainer(self):
-        if self.maintainer:
-            return True
-        else:
-            return False
-
-    def ignore_line(self, line):
+    def ignore_line(self):
         p = re.compile(r'%s' % self.rules.general['ignore_regex'])
-        m = p.match(line)
+        m = p.match(self.line)
         if m:
             return True
         else:
             return False
 
     def is_valid_instruction(self, instruction):
+        # FIXME: use self.line instead of instruction or refactor
         if instruction not in self.rules.general['valid_instructions']:
             return False
         else:
             return True
-
-    @staticmethod
-    def evaluation():
-        if len(self.errors > 0):
-            return False
-        return len(self.warnings)
 
 class Output(object):
     """Base class for output"""
@@ -170,10 +90,12 @@ class Summary(Output):
 
     @property
     def items(self):
+        """Items in Summary section"""
         return self._items
 
     @property
     def raw_file(self):
+        """An array of all dockerfile lines"""
         return self.__raw_file
 
     @raw_file.setter
@@ -196,6 +118,7 @@ class Info(Output):
 
     @property
     def items(self):
+        """Items in Info section"""
         return self._items
 
     @property
@@ -210,6 +133,7 @@ class Info(Output):
 
     @property
     def info(self):
+        """An array of information found"""
         return self._info
 
 class Warn(Output):
@@ -223,6 +147,7 @@ class Warn(Output):
 
     @property
     def items(self):
+        """Items in Warn section"""
         return self._items
 
     @property
@@ -237,6 +162,7 @@ class Warn(Output):
 
     @property
     def warnings(self):
+        """An array of the actual warnings found"""
         return self._warnings
 
 class Error(Output):
@@ -247,6 +173,7 @@ class Error(Output):
 
     @property
     def items(self):
+        """Items in Error section"""
         return self._items
 
     @property
@@ -258,6 +185,7 @@ class Error(Output):
 
     @property
     def errors(self):
+        """An array of the actual errors found"""
         return self._errors
 
 class Rules:
@@ -312,6 +240,10 @@ def main():
                 sort_keys=True, indent=4)
 
     def post_processing():
+        """Check whole file against rules
+
+        What was not provided? Multiple instructions, etc"""
+        # FIXME: not yet working
         for rule in rules.global_counts:
             count = 0
             for cmd in summary.valid_commands:
@@ -327,6 +259,8 @@ def main():
                 summary.line_count = 1
                 summary.raw_file = line.strip()
                 parse_dockerfile(line.strip())
+        # FIXME: put this logic into Output class
+        # there must be an elegant way to do this
         summary.update(filename = args.dockerfile)
         summary.update(raw_file_array = summary.raw_file)
         summary.update(total_lines = summary.line_count)
@@ -341,7 +275,7 @@ def main():
 
     def parse_dockerfile(line_text):
         dl = DockerfileLine(rules, line_text)
-        if dl.ignore_line(line_text):
+        if dl.ignore_line():
              summary.incr_ignored_lines_count()
              return
         else:
@@ -362,6 +296,13 @@ def main():
                         text = "invalid instruction")
                     error.increment_count()
 
+    # FIXME: not sure where this belongs after the refactor
+    #@staticmethod
+    #def evaluation():
+    #    if len(self.errors > 0):
+    #        return False
+    #    return len(self.warnings)
+
     summary = Summary()
     warn = Warn()
     info = Info()
@@ -370,9 +311,9 @@ def main():
     rules = parse_rules(args.rules)
     process_dockerfile(args.dockerfile)
     post_processing()
+    # FIXME: we should be serializing Output object
     print to_json()
 
-    #d.to_json()
     # -1 if errors occurred
     # number of warnings otherwise
     #return d.evaluation
