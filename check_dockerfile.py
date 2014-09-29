@@ -32,6 +32,7 @@ class DockerfileLine(object):
         self.rules = rules
 
     def ignore_line(self):
+        """Check if line should be ignored"""
         p = re.compile(r'%s' % self.rules.general['ignore_regex'])
         m = p.match(self.line)
         if m:
@@ -40,6 +41,7 @@ class DockerfileLine(object):
             return False
 
     def is_valid_instruction(self, instruction):
+        """Check if instruction is valid"""
         # FIXME: use self.line instead of instruction or refactor
         if instruction not in self.rules.general['valid_instructions']:
             return False
@@ -50,9 +52,11 @@ class Output(object):
     """Base class for output"""
 
     def update(self, **kwargs):
+        """Common method to add to items dict"""
         self._items.update(**kwargs)
 
     def increment_count(self):
+        """Common method to increment count"""
         self._count += 1
 
 class Summary(Output):
@@ -68,24 +72,30 @@ class Summary(Output):
 
     @property
     def line_count(self):
+        """Return count of total lines (raw)"""
         return self.__line_count
 
     @line_count.setter
     def line_count(self,value=1):
+        """Increment raw line count"""
         self.__line_count += value
 
     @property
     def layer_count(self):
+        """Return count of resulting image layers"""
         return self.__layer_count
 
     def incr_layer_count(self,value=1):
+        """Increment count of resulting image layers"""
         self.__layer_count += value
 
     @property
     def ignored_lines_count(self):
+        """Return count of ignored lines found"""
         return self.__ignored_lines_count
 
     def incr_ignored_lines_count(self,value=1):
+        """Increment count of ignored lines"""
         self.__ignored_lines_count += value
 
     @property
@@ -100,14 +110,17 @@ class Summary(Output):
 
     @raw_file.setter
     def raw_file(self, line):
+        """Append to raw_file array"""
         self.__raw_file.append(line)
 
     @property
     def valid_commands(self):
+        """Valid commands array"""
         return self.__valid_commands
 
     @valid_commands.setter
     def valid_commands(self, line):
+        """Append to valid commands array"""
         self.__valid_commands.append(line)
 
 class Info(Output):
@@ -123,12 +136,15 @@ class Info(Output):
 
     @property
     def count(self):
+        """Count of information found"""
         return self._count
 
     def incr_count(self,value=1):
+        """Increment count property"""
         self._count += value
 
     def append(self, **kwargs):
+        """Append info to array"""
         self._info.append(kwargs)
 
     @property
@@ -152,12 +168,15 @@ class Warn(Output):
 
     @property
     def count(self):
+        """Count of warnings found"""
         return self._count
 
     def incr_count(self,value=1):
+        """Increment warnings found"""
         self._count += value
 
     def append(self, **kwargs):
+        """Append warnings to array"""
         self._warnings.append(kwargs)
 
     @property
@@ -178,6 +197,7 @@ class Error(Output):
 
     @property
     def count(self):
+        """count of errors found"""
         return self._count
 
     def append(self, **kwargs):
@@ -194,6 +214,7 @@ class Rules:
         self.__dict__.update(rules)
 
 def parse_rules(rules):
+    """Return rule yaml file as object"""
     f = open(rules)
     rules = yaml.safe_load(f)
     f.close()
@@ -215,6 +236,7 @@ def main():
 
 
     def match_rule(instruction_rules, arg):
+        """Match lines to defined instruction rules"""
         for rule in instruction_rules:
             p = re.compile(r'%s' % rule['regex'])
             m = p.search(arg)
@@ -231,6 +253,7 @@ def main():
                     info.incr_count()
 
     def to_json():
+        """Return json format"""
         return json.dumps({
                 "summary": summary.items,
                 "info": info.items,
@@ -254,6 +277,7 @@ def main():
                 #    print "ERROR %s" % cmd
 
     def process_dockerfile(dockerfile):
+        """Main loop through file"""
         with open(dockerfile, 'r') as f:
             for line in f:
                 summary.line_count = 1
@@ -274,6 +298,7 @@ def main():
         error.update(errors = error.errors)
 
     def parse_dockerfile(line_text):
+        """Parse each line of file"""
         dl = DockerfileLine(rules, line_text)
         if dl.ignore_line():
              summary.incr_ignored_lines_count()
