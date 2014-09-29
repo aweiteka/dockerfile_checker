@@ -209,7 +209,9 @@ class Error(Output):
         return self._errors
 
 class Rules:
-    """Convert yaml into object"""
+    """Convert yaml into object
+
+    Only converts first level"""
     def __init__(self, **rules):
         self.__dict__.update(rules)
 
@@ -242,6 +244,7 @@ def main():
             m = p.search(arg)
             if m:
                 rule.update({ "line": summary.line_count })
+                # TODO: duplicate code; create function
                 if 'warn' in rule['level']:
                     warn.append(**rule)
                     warn.incr_count()
@@ -266,15 +269,19 @@ def main():
         """Check whole file against rules
 
         What was not provided? Multiple instructions, etc"""
-        # FIXME: not yet working
+        counts = [r['instruction'] for r in rules.global_counts for i in summary.valid_commands if r['instruction'] in i[0]]
         for rule in rules.global_counts:
-            count = 0
-            for cmd in summary.valid_commands:
-                if rule in cmd[0]:
-                    count += 1
-                #print rule, count
-                #if count != rule['count']:
-                #    print "ERROR %s" % cmd
+            if counts.count(rule['instruction']) != rule['count']:
+                # TODO: duplicate code; create function
+                if 'warn' in rule['level']:
+                    warn.append(**rule)
+                    warn.incr_count()
+                elif 'error' in rule['level']:
+                    error.append(**rule)
+                    error.incr_count()
+                elif 'info' in rule['level']:
+                    info.append(**rule)
+                    info.incr_count()
 
     def process_dockerfile(dockerfile):
         """Main loop through file"""

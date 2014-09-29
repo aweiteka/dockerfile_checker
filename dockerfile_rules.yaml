@@ -52,31 +52,31 @@ line_rules:
       reference_url: https://github.com/jpetazzo/nsenter
 
 global_counts:
-  MAINTAINER:
+  - instruction: MAINTAINER
     count: 1
     level: info
     message: Maintainer is not defined
     description: The MAINTAINER line is useful for identifying the author in the form of MAINTAINER Joe Smith <joe.smith@example.com>
     reference_url: [*ref_url_base, "#maintainer"]
-  EXPOSE:
+  - instruction: EXPOSE
     count: 1
     level: info
     message: There is no 'EXPOSE' instruction
     description: Without exposed ports how will the service of the container be accessed?
     reference_url: [*ref_url_base, "#expose"]
-  ENTRYPOINT:
+  - instruction: ENTRYPOINT
     count: 1
     level: info
     message: There is no 'ENTRYPOINT' instruction
     description: None
     reference_url: [*ref_url_base, "#entrypoint"]
-  CMD:
+  - instruction: CMD
     count: 1
     level: info
     message: There is no 'CMD' instruction
     description: None
     reference_url: [*ref_url_base, "#cmd"]
-  USER:
+  - instruction: USER
     count: 1
     level: warn
     message: No 'USER' instruction
